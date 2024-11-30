@@ -1,0 +1,10 @@
+[theme]
+base="dark"
+primaryColor="#ff0000"  # Bright Christmas red
+backgroundColor="#0a2f0a"  # Dark Christmas green
+secondaryBackgroundColor="#1b4d1b"  # Medium Christmas green
+textColor="#ffffff"  # White text
+font="sans serif"
+
+[server]
+enableStaticServing = true
