@@ -1,11 +1,20 @@
 import numpy as np
 import streamlit as st
 
-def generate_pairs(names, constraints):
+def generate_pairs(names, constraints, families):
     np_names = np.array(names)
     valid = False
     attempts = 0
     max_attempts = 1000  # Prevent infinite loops
+    
+    # Add family constraints automatically
+    family_constraints = []
+    for family_members in families.values():
+        for i in range(len(family_members)):
+            for j in range(i + 1, len(family_members)):
+                family_constraints.append([family_members[i], family_members[j]])
+    
+    all_constraints = constraints + family_constraints
     
     while not valid and attempts < max_attempts:
         attempts += 1
@@ -13,7 +22,8 @@ def generate_pairs(names, constraints):
         np.random.shuffle(np_shuffled)
         
         valid = True
-        for constraint in constraints:
+        # Check all constraints including family constraints
+        for constraint in all_constraints:
             idx0 = np.where(np_shuffled == constraint[0])[0][0]
             idx1 = np.where(np_shuffled == constraint[1])[0][0]
             if abs(idx0 - idx1) == 1 or abs(idx0 - idx1) == len(np_shuffled) - 1:
@@ -112,7 +122,7 @@ def main():
     with st.container():
         names_text = st.text_area(
             "Enter names (one per line)",
-            value="Theo\nEls\nNico\nOpa\nOma\nAnton\nFeliz\nVictor\nJeroen\nNathalie\nAlisa\nMalou",
+            value="John\nJane",
             height=200
         )
         names = [name.strip() for name in names_text.split('\n') if name.strip()]
@@ -126,6 +136,53 @@ def main():
                 🎄 {name}
             </div>
         """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # Add family management section
+    st.markdown("### 👨‍👩‍👧‍👦 Family Groups")
+    
+    # Initialize families in session state if not exists
+    if 'families' not in st.session_state:
+        st.session_state.families = {}
+    
+    # Family creation interface
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        family_name = st.text_input("Family Name", key="family_name")
+    with col2:
+        if st.button("Add Family ➕"):
+            if family_name and family_name not in st.session_state.families:
+                st.session_state.families[family_name] = []
+                st.success(f"Added family: {family_name}")
+
+    # Family member assignment
+    if st.session_state.families:
+        st.markdown("#### Add Family Members")
+        col1, col2, col3 = st.columns([2, 2, 1])
+        with col1:
+            selected_family = st.selectbox("Select Family", list(st.session_state.families.keys()))
+        with col2:
+            available_members = [n.strip() for n in names_text.split('\n') 
+                               if n.strip() and not any(n.strip() in f for f in st.session_state.families.values())]
+            selected_member = st.selectbox("Select Member", available_members) if available_members else None
+        with col3:
+            if selected_member and st.button("Add Member ➕"):
+                st.session_state.families[selected_family].append(selected_member)
+
+        # Display current families
+        st.markdown("#### Current Families")
+        for family, members in st.session_state.families.items():
+            with st.expander(f"📋 {family} ({len(members)} members)"):
+                for member in members:
+                    col1, col2 = st.columns([5, 1])
+                    col1.markdown(f"🧑 {member}")
+                    if col2.button("Remove", key=f"remove_{family}_{member}"):
+                        st.session_state.families[family].remove(member)
+                        st.rerun()
+                if st.button("Delete Family", key=f"delete_{family}"):
+                    del st.session_state.families[family]
+                    st.rerun()
 
     st.markdown("---")
 
@@ -166,20 +223,30 @@ def main():
     # Generate pairs with enhanced UI
     if st.button("🎲 Generate Pairs!", use_container_width=True):
         current_constraints = st.session_state.get('constraints', [])
-        pairs = generate_pairs(names, current_constraints)
+        pairs = generate_pairs(names, current_constraints, st.session_state.families)
         
         if pairs:
             st.balloons()
             st.success("🎉 Successfully generated pairs!")
             st.markdown("### 🎁 Results")
             for giver, receiver in pairs:
+                # Find family affiliations
+                giver_family = next((f for f, m in st.session_state.families.items() if giver in m), None)
+                receiver_family = next((f for f, m in st.session_state.families.items() if receiver in m), None)
+                
+                family_info = ""
+                if giver_family:
+                    family_info += f" ({giver_family})"
+                if receiver_family:
+                    family_info += f" → ({receiver_family})"
+                
                 st.markdown(f"""
                     <div class='result-card'>
-                        🎁 <b>{giver}</b> → 🎄 <b>{receiver}</b>
+                        🎁 <b>{giver}</b>{family_info} → 🎄 <b>{receiver}</b>
                     </div>
                 """, unsafe_allow_html=True)
         else:
-            st.error("😕 Could not find a valid arrangement with these constraints. Try reducing the number of constraints.")
+            st.error("😕 Could not find a valid arrangement with these constraints and family groups. Try reducing the number of constraints.")
 
     # Footer
     st.markdown("---")
